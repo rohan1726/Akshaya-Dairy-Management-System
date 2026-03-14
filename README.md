@@ -38,9 +38,11 @@ Dairy milk collection and management: backend API (Node + Express + MongoDB), ad
 
 2. In [Vercel](https://vercel.com): **Add New Project** → Import your GitHub repo.
 
-3. **Project settings**
-   - **Root Directory:** set to `backend` (so Vercel builds and runs the API only).
-   - **Build Command:** `npm run build`
+3. **Project settings (required)**  
+   Go to **Project → Settings → General**:
+   - **Root Directory:** click **Edit**, set to `backend`, then **Save**.  
+     (If you skip this, the build will fail with `tsc: command not found` because only the backend has the API and TypeScript.)
+   - **Build Command:** `npm run build` (default)
    - **Output Directory:** leave default (not used for serverless API).
 
 4. **Environment variables** (Vercel → Project → Settings → Environment Variables)
@@ -83,3 +85,7 @@ Dairy milk collection and management: backend API (Node + Express + MongoDB), ad
 
 - Keep `.env` and real passwords out of the repo. Use Vercel env vars and local `.env` only.
 - Use a strong `JWT_SECRET` in production.
+
+## Vercel build failed with `tsc: command not found`?
+
+Set **Root Directory** to `backend`: Vercel → your project → **Settings** → **General** → **Root Directory** → **Edit** → enter `backend` → **Save**, then redeploy. The API lives in `backend/`; building from repo root does not install backend dependencies, so `tsc` is missing.
