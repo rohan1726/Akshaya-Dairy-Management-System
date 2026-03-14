@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import db from '../config/database';
+import { MilkCollectionModel, DairyCenterModel, DriverModel, UserModel } from '../models';
+import { toApiDocs } from '../config/database';
 import logger from '../utils/logger';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../models/types';
@@ -19,42 +20,45 @@ export class ReportController {
         return;
       }
 
-      let query = db('milk_collections')
-        .join('dairy_centers', 'milk_collections.vendor_id', 'dairy_centers.id')
-        .select(
-          'milk_collections.*',
-          'dairy_centers.dairy_name'
-        )
-        .whereBetween('milk_collections.collection_date', [start_date, end_date]);
+      const filter: any = {
+        collection_date: {
+          $gte: new Date(start_date as string),
+          $lte: new Date(end_date as string),
+        },
+      };
+      if (center_id) filter.vendor_id = center_id;
 
-      if (center_id) {
-        query = query.where('milk_collections.vendor_id', center_id as string);
-      }
+      const collections = await MilkCollectionModel.find(filter)
+        .sort({ collection_date: -1 })
+        .lean();
 
-      const collections = await query.orderBy('milk_collections.collection_date', 'desc');
+      const centerIds = [...new Set(collections.map((c: { vendor_id: string }) => c.vendor_id))];
+      const centers = await DairyCenterModel.find({ _id: { $in: centerIds } }).lean();
+      const centerMap = new Map(centers.map((c: { _id: any; dairy_name?: string }) => [c._id.toString(), c]));
 
-      // Calculate totals
-      const totals = collections.reduce((acc: any, col: any) => {
-        acc.totalWeight += col.milk_weight || 0;
-        acc.totalAmount += col.total_amount || 0;
-        if (col.collection_time === 'morning') {
-          acc.morningWeight += col.milk_weight || 0;
-        } else {
-          acc.eveningWeight += col.milk_weight || 0;
-        }
-        return acc;
-      }, { totalWeight: 0, totalAmount: 0, morningWeight: 0, eveningWeight: 0 });
+      const data = collections.map((c: { vendor_id: string; _id: any; [key: string]: any }) => ({
+        ...c,
+        id: c._id.toString(),
+        dairy_name: centerMap.get(c.vendor_id)?.dairy_name,
+      }));
+
+      const totals = data.reduce(
+        (acc: any, col: any) => {
+          acc.totalWeight += col.milk_weight || 0;
+          acc.totalAmount += col.total_amount || 0;
+          if (col.collection_time === 'morning') acc.morningWeight += col.milk_weight || 0;
+          else acc.eveningWeight += col.milk_weight || 0;
+          return acc;
+        },
+        { totalWeight: 0, totalAmount: 0, morningWeight: 0, eveningWeight: 0 }
+      );
 
       res.json({
         success: true,
         data: {
-          collections,
+          collections: toApiDocs(data as any),
           totals,
-          period: {
-            start_date,
-            end_date,
-            center_id: center_id || null,
-          },
+          period: { start_date, end_date, center_id: center_id || null },
         },
       });
     } catch (error: any) {
@@ -76,36 +80,37 @@ export class ReportController {
       const { driver_id, start_date, end_date } = req.query;
 
       if (!driver_id || !start_date || !end_date) {
-        res.status(400).json({ success: false, message: 'driver_id, start_date and end_date are required' });
+        res.status(400).json({
+          success: false,
+          message: 'driver_id, start_date and end_date are required',
+        });
         return;
       }
 
-      // Get driver info
-      const driver = await db('drivers')
-        .join('users', 'drivers.driver_id', 'users.id')
-        .where('drivers.id', driver_id as string)
-        .select('drivers.*', 'users.first_name', 'users.last_name', 'users.mobile_no')
-        .first();
-
+      const driver = await DriverModel.findById(driver_id).lean();
       if (!driver) {
         res.status(404).json({ success: false, message: 'Driver not found' });
         return;
       }
 
-      // Get collections by this driver
-      const collections = await db('milk_collections')
-        .where('driver_id', driver.driver_id)
-        .whereBetween('collection_date', [start_date, end_date])
-        .orderBy('collection_date', 'desc');
+      const user = await UserModel.findById(driver.driver_id).lean();
+      if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
 
-      // Get salary info
+      const start = new Date(start_date as string);
+      const end = new Date(end_date as string);
+      const collections = await MilkCollectionModel.find({
+        driver_id: driver.driver_id,
+        collection_date: { $gte: start, $lte: end },
+      })
+        .sort({ collection_date: -1 })
+        .lean();
+
       const salary = driver.salary_per_month || 0;
-      const daysInPeriod = Math.ceil(
-        (new Date(end_date as string).getTime() - new Date(start_date as string).getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const daysInPeriod = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       const baseSalary = (salary / 30) * daysInPeriod;
-
-      // Calculate overtime, bonus, etc. (simplified)
       const overtime = 0;
       const bonus = 0;
       const deductions = 0;
@@ -115,23 +120,13 @@ export class ReportController {
         success: true,
         data: {
           driver: {
-            id: driver.id,
-            name: `${driver.first_name} ${driver.last_name}`,
-            mobile: driver.mobile_no,
+            id: driver._id.toString(),
+            name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+            mobile: user.mobile_no,
             vehicle_number: driver.vehicle_number,
           },
-          period: {
-            start_date,
-            end_date,
-            days: daysInPeriod,
-          },
-          salary: {
-            baseSalary,
-            overtime,
-            bonus,
-            deductions,
-            finalAmount,
-          },
+          period: { start_date, end_date, days: daysInPeriod },
+          salary: { baseSalary, overtime, bonus, deductions, finalAmount },
           collections: collections.length,
         },
       });
@@ -146,4 +141,3 @@ export class ReportController {
 }
 
 export default new ReportController();
-

@@ -250,12 +250,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     // Role-based filtering
     if (req.user.role === UserRole.VENDOR) {
-      const db = (await import('../config/database')).default;
-      const center = await db('dairy_centers')
-        .where('user_id', req.user.userId)
-        .first();
+      const { DairyCenterModel } = await import('../models');
+      const center = await DairyCenterModel.findOne({ user_id: req.user.userId }).lean();
       if (center) {
-        filters.vendor_id = center.id;
+        filters.vendor_id = center._id.toString();
       }
     } else if (req.query.vendor_id) {
       filters.vendor_id = req.query.vendor_id as string;

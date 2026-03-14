@@ -3,7 +3,7 @@ import driverService from '../services/driver.service';
 import { validate, driverLocationSchema } from '../utils/validation';
 import logger from '../utils/logger';
 import { AuthRequest } from '../middleware/auth.middleware';
-import db from '../config/database';
+import { UserModel } from '../models';
 
 export class DriverController {
   async updateDutyStatus(req: AuthRequest, res: Response): Promise<void> {
@@ -14,7 +14,7 @@ export class DriverController {
       }
 
       // Check if driver is active
-      const user = await db('users').where('id', req.user.userId).first();
+      const user = await UserModel.findById(req.user.userId).lean();
       if (!user || !user.is_active) {
         res.status(403).json({ 
           success: false, 
@@ -206,24 +206,22 @@ export class DriverController {
         return;
       }
 
-      // Get driver directly from database to ensure fresh data
-      const driver = await db('drivers')
-        .where('driver_id', req.user.userId)
-        .first();
+      const { DriverModel } = await import('../models');
+      const driver = await DriverModel.findOne({ driver_id: req.user.userId }).lean();
 
       if (!driver) {
         res.status(404).json({ success: false, message: 'Driver not found' });
         return;
       }
 
-      // Get user active status
-      const user = await db('users').where('id', req.user.userId).first();
+      const user = await UserModel.findById(req.user.userId).lean();
       
+      const { toApiDoc } = await import('../config/database');
       res.json({
         success: true,
         data: {
-          ...driver,
-          is_on_duty: driver.is_on_duty ?? false, // Explicitly ensure boolean
+          ...toApiDoc(driver),
+          is_on_duty: driver.is_on_duty ?? false,
           is_active: user?.is_active ?? false,
         },
       });

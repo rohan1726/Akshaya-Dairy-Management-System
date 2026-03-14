@@ -10,7 +10,6 @@ module.exports = {
     'src/**/*.ts',
     '!src/**/*.d.ts',
     '!src/app.ts',
-    '!src/knexfile.ts',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],

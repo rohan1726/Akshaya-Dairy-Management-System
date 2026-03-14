@@ -1,5 +1,10 @@
 import { Response } from 'express';
-import db from '../config/database';
+import {
+  UserModel,
+  DriverModel,
+  DriverCenterAssignmentModel,
+} from '../models';
+import { toApiDoc } from '../config/database';
 import logger from '../utils/logger';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../models/types';
@@ -30,45 +35,37 @@ export class DriverAdminController {
         emergency_contact_mobile,
       } = req.body;
 
-      // Create user first
       const hashedPassword = await bcrypt.hash(password || 'password123', 10);
-      const [user] = await db('users')
-        .insert({
-          mobile_no,
-          email: email || null,
-          password: hashedPassword,
-          role: 'driver',
-          first_name,
-          last_name,
-          is_active: true,
-          is_verified: true,
-        })
-        .returning('*');
+      const user = await UserModel.create({
+        mobile_no,
+        email: email || null,
+        password: hashedPassword,
+        role: 'driver',
+        first_name,
+        last_name,
+        is_active: true,
+        is_verified: true,
+      });
 
-      // Create driver
-      const [driver] = await db('drivers')
-        .insert({
-          driver_id: user.id,
-          center_id: center_id || null,
-          license_number,
-          license_expiry: license_expiry ? new Date(license_expiry) : null,
-          vehicle_number,
-          vehicle_type,
-          salary_per_month: salary_per_month || 0,
-          joining_date: joining_date ? new Date(joining_date) : new Date(),
-          is_on_duty: false,
-          emergency_contact_name,
-          emergency_contact_mobile,
-          created_by: req.user.userId,
-        })
-        .returning('*');
+      const driver = await DriverModel.create({
+        driver_id: user._id.toString(),
+        center_id: center_id || null,
+        license_number,
+        license_expiry: license_expiry ? new Date(license_expiry) : null,
+        vehicle_number,
+        vehicle_type,
+        salary_per_month: salary_per_month || 0,
+        joining_date: joining_date ? new Date(joining_date) : new Date(),
+        is_on_duty: false,
+        emergency_contact_name,
+        emergency_contact_mobile,
+        created_by: req.user.userId,
+      });
 
-      // Create assignment if center_id provided
       if (center_id) {
-        await db('driver_center_assignments').insert({
-          driver_id: driver.id,
+        await DriverCenterAssignmentModel.create({
+          driver_id: driver._id.toString(),
           center_id,
-          assigned_date: new Date(),
           is_active: true,
           created_by: req.user.userId,
         });
@@ -77,7 +74,7 @@ export class DriverAdminController {
       res.status(201).json({
         success: true,
         message: 'Driver created successfully',
-        data: { ...driver, user },
+        data: { ...toApiDoc(driver), user: toApiDoc(user) },
       });
     } catch (error: any) {
       logger.error('Create driver error:', error);
@@ -98,15 +95,11 @@ export class DriverAdminController {
       const { id } = req.params;
       const updateData = req.body;
 
-      // Update driver
-      const [driver] = await db('drivers')
-        .where('id', id)
-        .update({
-          ...updateData,
-          modified_at: new Date(),
-          modified_by: req.user.userId,
-        })
-        .returning('*');
+      const driver = await DriverModel.findByIdAndUpdate(
+        id,
+        { ...updateData, modified_by: req.user.userId },
+        { new: true }
+      );
 
       if (!driver) {
         res.status(404).json({ success: false, message: 'Driver not found' });
@@ -116,7 +109,7 @@ export class DriverAdminController {
       res.json({
         success: true,
         message: 'Driver updated successfully',
-        data: driver,
+        data: toApiDoc(driver),
       });
     } catch (error: any) {
       logger.error('Update driver error:', error);
@@ -135,14 +128,13 @@ export class DriverAdminController {
       }
 
       const { id } = req.params;
-      const driver = await db('drivers').where('id', id).first();
+      const driver = await DriverModel.findById(id);
 
       if (!driver) {
         res.status(404).json({ success: false, message: 'Driver not found' });
         return;
       }
 
-      // Use driver service to update duty status (which also logs to driver_duty_logs)
       const driverService = (await import('../services/driver.service')).default;
       const updated = await driverService.updateDutyStatusByDriverId(
         id,
@@ -172,26 +164,24 @@ export class DriverAdminController {
       }
 
       const { id } = req.params;
-      const driver = await db('drivers')
-        .join('users', 'drivers.driver_id', 'users.id')
-        .where('drivers.id', id)
-        .select('drivers.*', 'users.is_active as user_is_active')
-        .first();
-
+      const driver = await DriverModel.findById(id).lean();
       if (!driver) {
         res.status(404).json({ success: false, message: 'Driver not found' });
         return;
       }
 
-      const newStatus = !driver.user_is_active;
-      await db('users')
-        .where('id', driver.driver_id)
-        .update({ is_active: newStatus });
+      const user = await UserModel.findById(driver.driver_id);
+      if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
+      user.is_active = !user.is_active;
+      await user.save();
 
       res.json({
         success: true,
-        message: `Driver ${newStatus ? 'activated' : 'deactivated'} successfully`,
-        data: { is_active: newStatus },
+        message: `Driver ${user.is_active ? 'activated' : 'deactivated'} successfully`,
+        data: { is_active: user.is_active },
       });
     } catch (error: any) {
       logger.error('Toggle driver status error:', error);
@@ -212,32 +202,26 @@ export class DriverAdminController {
       const { id } = req.params;
       const { center_id } = req.body;
 
-      const driver = await db('drivers').where('id', id).first();
+      const driver = await DriverModel.findById(id);
       if (!driver) {
         res.status(404).json({ success: false, message: 'Driver not found' });
         return;
       }
 
-      // Deactivate existing assignments
-      await db('driver_center_assignments')
-        .where('driver_id', id)
-        .where('is_active', true)
-        .update({ is_active: false, unassigned_date: new Date() });
+      await DriverCenterAssignmentModel.updateMany(
+        { driver_id: id, is_active: true },
+        { is_active: false }
+      );
 
-      // Create new assignment
       if (center_id) {
-        await db('driver_center_assignments').insert({
+        await DriverCenterAssignmentModel.create({
           driver_id: id,
           center_id,
-          assigned_date: new Date(),
           is_active: true,
           created_by: req.user.userId,
         });
-
-        // Update driver center_id
-        await db('drivers')
-          .where('id', id)
-          .update({ center_id, modified_at: new Date() });
+        driver.center_id = center_id;
+        await driver.save();
       }
 
       res.json({
@@ -255,4 +239,3 @@ export class DriverAdminController {
 }
 
 export default new DriverAdminController();
-

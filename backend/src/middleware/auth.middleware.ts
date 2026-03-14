@@ -78,8 +78,8 @@ export const checkDriverActive = async (
       return;
     }
 
-    const db = (await import('../config/database')).default;
-    const user = await db('users').where('id', req.user.userId).first();
+    const { UserModel } = await import('../models');
+    const user = await UserModel.findById(req.user.userId).lean();
 
     if (!user || !user.is_active) {
       res.status(403).json({

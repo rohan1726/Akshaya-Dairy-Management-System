@@ -1,6 +1,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { connectDatabase } from './config/database';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import logger from './utils/logger';
 import { setupSwagger } from './config/swagger';
@@ -122,16 +123,40 @@ app.use('/api/reports', reportRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Start server only when not in test and not on Vercel (Vercel runs app as serverless)
-if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
-  app.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
-    logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    logger.info(`Swagger API Documentation: http://localhost:${PORT}/api-docs`);
-    console.log('\n🚀 Server is running!');
-    console.log(`📚 Swagger API Documentation: http://localhost:${PORT}/api-docs`);
-    console.log(`🏥 Health Check: http://localhost:${PORT}/health\n`);
+// Connect to MongoDB (for both local server and Vercel serverless)
+if (process.env.NODE_ENV !== 'test') {
+  connectDatabase().catch((err) => {
+    logger.error('MongoDB connection failed', { error: err });
+    if (!process.env.VERCEL) process.exit(1);
   });
+}
+
+// Start HTTP server only when not in test and not on Vercel (Vercel runs app as serverless)
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  connectDatabase()
+    .then(() => {
+      const server = app.listen(PORT, () => {
+        logger.info(`Server running on port ${PORT}`);
+        logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        logger.info(`Swagger API Documentation: http://localhost:${PORT}/api-docs`);
+        console.log('\n🚀 Server is running!');
+        console.log(`📚 Swagger API Documentation: http://localhost:${PORT}/api-docs`);
+        console.log(`🏥 Health Check: http://localhost:${PORT}/health\n`);
+      });
+      server.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          logger.error(`Port ${PORT} is already in use. Stop the other process or set PORT in .env.`);
+          console.error(`\n❌ Port ${PORT} is already in use. Close the app using that port or run on another PORT (e.g. set PORT=3003 in .env).\n`);
+        } else {
+          logger.error('Server error', { error: err });
+        }
+        process.exit(1);
+      });
+    })
+    .catch((err) => {
+      logger.error('Failed to start server', { error: err });
+      process.exit(1);
+    });
 }
 
 export default app;

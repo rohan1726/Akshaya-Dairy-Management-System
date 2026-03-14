@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import db from '../config/database';
+import { UserModel, DairyCenterModel, ActivityLogModel } from '../models';
+import { toApiDoc, toApiDocs } from '../config/database';
 import logger from '../utils/logger';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../models/types';
@@ -16,49 +17,41 @@ export class DairyCenterController {
 
       const { dairy_name, contact_mobile, email, password, address, first_name, last_name } = req.body;
 
-      // Create user first
       const hashedPassword = await bcrypt.hash(password || 'password123', 10);
-      const [user] = await db('users')
-        .insert({
-          mobile_no: contact_mobile,
-          email: email || null,
-          password: hashedPassword,
-          role: 'vendor',
-          first_name: first_name || dairy_name,
-          last_name: last_name || '',
-          is_active: true,
-          is_verified: true,
-        })
-        .returning('*');
+      const user = await UserModel.create({
+        mobile_no: contact_mobile,
+        email: email || null,
+        password: hashedPassword,
+        role: 'vendor',
+        first_name: first_name || dairy_name,
+        last_name: last_name || '',
+        is_active: true,
+        is_verified: true,
+      });
 
-      // Create center
       const qrCode = `DC-${uuidv4().substring(0, 8).toUpperCase()}`;
-      const [center] = await db('dairy_centers')
-        .insert({
-          user_id: user.id,
-          dairy_name,
-          contact_mobile,
-          address: address || {},
-          qr_code: qrCode,
-          is_active: true,
-          created_by: req.user.userId,
-        })
-        .returning('*');
+      const center = await DairyCenterModel.create({
+        user_id: user._id.toString(),
+        dairy_name,
+        contact_mobile,
+        address: address || {},
+        qr_code: qrCode,
+        is_active: true,
+        created_by: req.user.userId,
+      });
 
-      // Log activity
-      await db('activity_logs').insert({
+      await ActivityLogModel.create({
         user_id: req.user.userId,
         action: 'create_dairy_center',
         entity_type: 'dairy_center',
-        entity_id: center.id,
-        description: `Created dairy center: ${dairy_name}`,
-        new_values: center,
+        entity_id: center._id.toString(),
+        details: { dairy_name },
       });
 
       res.status(201).json({
         success: true,
         message: 'Dairy center created successfully',
-        data: { ...center, user },
+        data: { ...toApiDoc(center), user: toApiDoc(user) },
       });
     } catch (error: any) {
       logger.error('Create center error:', error);
@@ -79,34 +72,29 @@ export class DairyCenterController {
       const { id } = req.params;
       const updateData = req.body;
 
-      const [center] = await db('dairy_centers')
-        .where('id', id)
-        .update({
-          ...updateData,
-          modified_at: new Date(),
-          modified_by: req.user.userId,
-        })
-        .returning('*');
+      const center = await DairyCenterModel.findByIdAndUpdate(
+        id,
+        { ...updateData, modified_by: req.user.userId },
+        { new: true }
+      );
 
       if (!center) {
         res.status(404).json({ success: false, message: 'Dairy center not found' });
         return;
       }
 
-      // Log activity
-      await db('activity_logs').insert({
+      await ActivityLogModel.create({
         user_id: req.user.userId,
         action: 'update_dairy_center',
         entity_type: 'dairy_center',
-        entity_id: center.id,
-        description: `Updated dairy center: ${center.dairy_name}`,
-        new_values: center,
+        entity_id: center._id.toString(),
+        details: { dairy_name: center.dairy_name },
       });
 
       res.json({
         success: true,
         message: 'Dairy center updated successfully',
-        data: center,
+        data: toApiDoc(center),
       });
     } catch (error: any) {
       logger.error('Update center error:', error);
@@ -125,31 +113,21 @@ export class DairyCenterController {
       }
 
       const { id } = req.params;
-      const center = await db('dairy_centers').where('id', id).first();
-
+      const center = await DairyCenterModel.findById(id);
       if (!center) {
         res.status(404).json({ success: false, message: 'Dairy center not found' });
         return;
       }
 
-      const [updated] = await db('dairy_centers')
-        .where('id', id)
-        .update({
-          is_active: !center.is_active,
-          modified_at: new Date(),
-          modified_by: req.user.userId,
-        })
-        .returning('*');
+      center.is_active = !center.is_active;
+      await center.save();
 
-      // Also update user status
-      await db('users')
-        .where('id', center.user_id)
-        .update({ is_active: !center.is_active });
+      await UserModel.findByIdAndUpdate(center.user_id, { is_active: center.is_active });
 
       res.json({
         success: true,
-        message: `Center ${updated.is_active ? 'activated' : 'deactivated'} successfully`,
-        data: updated,
+        message: `Center ${center.is_active ? 'activated' : 'deactivated'} successfully`,
+        data: toApiDoc(center),
       });
     } catch (error: any) {
       logger.error('Toggle center status error:', error);
@@ -167,21 +145,23 @@ export class DairyCenterController {
         return;
       }
 
-      const centers = await db('dairy_centers')
-        .join('users', 'dairy_centers.user_id', 'users.id')
-        .select(
-          'dairy_centers.*',
-          'users.first_name',
-          'users.last_name',
-          'users.email',
-          'users.mobile_no as user_mobile'
-        )
-        .orderBy('dairy_centers.created_at', 'desc');
+      const centers = await DairyCenterModel.find().sort({ created_at: -1 }).lean();
+      const userIds = centers.map((c: { user_id: string }) => c.user_id);
+      const users = await UserModel.find({ _id: { $in: userIds } }).lean();
+      const userMap = new Map(users.map((u: { _id: any; first_name?: string; last_name?: string; email?: string; mobile_no?: string }) => [u._id.toString(), u]));
 
-      res.json({
-        success: true,
-        data: centers,
+      const data = centers.map((c: { user_id: string; [key: string]: any }) => {
+        const u = userMap.get(c.user_id) as { first_name?: string; last_name?: string; email?: string; mobile_no?: string } | undefined;
+        return {
+          ...toApiDoc(c),
+          first_name: u?.first_name,
+          last_name: u?.last_name,
+          email: u?.email,
+          user_mobile: u?.mobile_no,
+        };
       });
+
+      res.json({ success: true, data });
     } catch (error: any) {
       logger.error('Get all centers error:', error);
       res.status(500).json({
@@ -194,27 +174,22 @@ export class DairyCenterController {
   async getCenterById(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const center = await db('dairy_centers')
-        .join('users', 'dairy_centers.user_id', 'users.id')
-        .where('dairy_centers.id', id)
-        .select(
-          'dairy_centers.*',
-          'users.first_name',
-          'users.last_name',
-          'users.email',
-          'users.mobile_no as user_mobile'
-        )
-        .first();
-
+      const center = await DairyCenterModel.findById(id).lean();
       if (!center) {
         res.status(404).json({ success: false, message: 'Dairy center not found' });
         return;
       }
 
-      res.json({
-        success: true,
-        data: center,
-      });
+      const user = await UserModel.findById(center.user_id).lean();
+      const data = {
+        ...toApiDoc(center),
+        first_name: user?.first_name,
+        last_name: user?.last_name,
+        email: user?.email,
+        user_mobile: user?.mobile_no,
+      };
+
+      res.json({ success: true, data });
     } catch (error: any) {
       logger.error('Get center by id error:', error);
       res.status(500).json({
@@ -226,4 +201,3 @@ export class DairyCenterController {
 }
 
 export default new DairyCenterController();
-

@@ -7,12 +7,7 @@
     "dev": "nodemon src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "migrate": "knex migrate:latest",
-    "migrate:rollback": "knex migrate:rollback",
-    "migrate:status": "knex migrate:status",
-    "seed": "knex seed:run",
-    "seed:users": "knex seed:run --specific=001_seed_users.js",
-    "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run",
+    "seed": "ts-node database/seed-mongo.ts",
     "test": "jest"
   },
   "keywords": [
@@ -25,8 +20,7 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
-    "knex": "^3.0.1",
-    "pg": "^8.11.3",
+    "mongoose": "^8.0.3",
     "bcrypt": "^5.1.1",
     "jsonwebtoken": "^9.0.2",
     "joi": "^17.11.0",

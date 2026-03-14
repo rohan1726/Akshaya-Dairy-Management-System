@@ -1,58 +1,18 @@
 {
   "name": "akshaya-dairy-management-system",
   "version": "1.0.0",
-  "description": "Akshaya Dairy Milk Collection & Management System",
-  "main": "src/app.ts",
+  "description": "Akshaya Dairy - Run backend, admin panel and driver/center frontend together",
+  "private": true,
   "scripts": {
-    "dev": "nodemon src/app.ts",
-    "build": "tsc",
-    "start": "node dist/app.js",
-    "migrate": "knex migrate:latest",
-    "migrate:rollback": "knex migrate:rollback",
-    "migrate:status": "knex migrate:status",
-    "seed": "knex seed:run",
-    "seed:users": "knex seed:run --specific=001_seed_users.js",
-    "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run",
-    "test": "jest"
-  },
-  "keywords": [
-    "dairy",
-    "milk-collection",
-    "management-system"
-  ],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "express": "^4.18.2",
-    "knex": "^3.0.1",
-    "pg": "^8.11.3",
-    "bcrypt": "^5.1.1",
-    "jsonwebtoken": "^9.0.2",
-    "joi": "^17.11.0",
-    "dotenv": "^16.3.1",
-    "winston": "^3.11.0",
-    "cors": "^2.8.5",
-    "uuid": "^9.0.1",
-    "swagger-ui-express": "^5.0.0",
-    "swagger-jsdoc": "^6.2.8"
+    "dev": "concurrently -n api,admin,driver -c blue,green,magenta \"npm run dev:backend\" \"npm run dev:admin\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:admin": "cd frontend-admin && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend-admin && npm run build --prefix frontend",
+    "migrate": "cd backend && npm run migrate",
+    "seed": "cd backend && npm run seed"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.10.5",
-    "@types/bcrypt": "^5.0.2",
-    "@types/jsonwebtoken": "^9.0.5",
-    "@types/cors": "^2.8.17",
-    "@types/uuid": "^9.0.7",
-    "@types/swagger-ui-express": "^4.1.6",
-    "@types/swagger-jsdoc": "^6.0.4",
-    "@types/jest": "^29.5.11",
-    "@types/supertest": "^6.0.2",
-    "typescript": "^5.3.3",
-    "ts-node": "^10.9.2",
-    "nodemon": "^3.0.2",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.1.1",
-    "supertest": "^6.3.3"
+    "concurrently": "^8.2.2"
   }
 }
-

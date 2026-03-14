@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt, { SignOptions } from 'jsonwebtoken';
-import db from '../config/database';
+import { UserModel } from '../models';
+import { toApiDoc } from '../config/database';
 import { User, UserRole, JwtPayload } from '../models/types';
 import logger from '../utils/logger';
 
@@ -9,19 +10,15 @@ export class AuthService {
     user: Omit<User, 'password'>;
     token: string;
   }> {
-    // Find user by mobile or email
-    const user = await db('users')
-      .where(function () {
-        this.where('mobile_no', mobileOrEmail).orWhere('email', mobileOrEmail);
-      })
-      .where('is_active', true)
-      .first();
+    const user = await UserModel.findOne({
+      $or: [{ mobile_no: mobileOrEmail }, { email: mobileOrEmail }],
+      is_active: true,
+    }).lean();
 
     if (!user) {
       throw new Error('Invalid credentials');
     }
 
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
       throw new Error('Invalid credentials');
@@ -31,14 +28,13 @@ export class AuthService {
       throw new Error('Account not verified. Please contact admin.');
     }
 
-    // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       throw new Error('JWT secret not configured');
     }
 
     const payload: JwtPayload = {
-      userId: user.id,
+      userId: user._id.toString(),
       role: user.role as UserRole,
       email: user.email,
       mobile_no: user.mobile_no,
@@ -49,11 +45,12 @@ export class AuthService {
       expiresIn: expiresIn,
     } as SignOptions);
 
-    // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
+    const apiUser = toApiDoc(user as any);
+    if (apiUser) delete (apiUser as any).password;
 
     return {
-      user: userWithoutPassword,
+      user: { ...apiUser, id: user._id.toString() } as Omit<User, 'password'>,
       token,
     };
   }
@@ -66,45 +63,39 @@ export class AuthService {
     first_name?: string;
     last_name?: string;
   }): Promise<Omit<User, 'password'>> {
-    // Check if user already exists
-    const existingUser = await db('users')
-      .where('mobile_no', userData.mobile_no)
-      .orWhere(function () {
-        if (userData.email) {
-          this.where('email', userData.email);
-        }
-      })
-      .first();
+    const existingUser = await UserModel.findOne({
+      $or: [
+        { mobile_no: userData.mobile_no },
+        ...(userData.email ? [{ email: userData.email }] : []),
+      ],
+    });
 
     if (existingUser) {
       throw new Error('User with this mobile number or email already exists');
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-    // Insert user
-    const [user] = await db('users')
-      .insert({
-        ...userData,
-        password: hashedPassword,
-        is_active: true,
-        is_verified: userData.role === UserRole.ADMIN ? true : false, // Admin auto-verified
-      })
-      .returning('*');
+    const user = await UserModel.create({
+      ...userData,
+      password: hashedPassword,
+      is_active: true,
+      is_verified: userData.role === UserRole.ADMIN,
+    });
 
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    const out = toApiDoc(user);
+    if (out) delete (out as any).password;
+    return out as Omit<User, 'password'>;
   }
 
   async getCurrentUser(userId: string): Promise<Omit<User, 'password'> | null> {
-    const user = await db('users').where('id', userId).first();
+    const user = await UserModel.findById(userId).lean();
     if (!user) return null;
 
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    const out = toApiDoc(user as any);
+    if (out) delete (out as any).password;
+    return out as Omit<User, 'password'>;
   }
 }
 
 export default new AuthService();
-

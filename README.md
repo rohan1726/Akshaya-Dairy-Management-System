@@ -1,222 +1,85 @@
-# 🧀 Akshaya Dairy Management System
+# Akshaya Dairy Management System
 
-A comprehensive dairy milk collection and management system with separate admin panel and driver/center panel.
+Dairy milk collection and management: backend API (Node + Express + MongoDB), admin panel, and driver/center panel.
 
-## 📋 Table of Contents
+## Project structure
 
-- [Project Structure](#project-structure)
-- [Quick Start](#quick-start)
-- [Technology Stack](#technology-stack)
-- [Features](#features)
-- [Documentation](#documentation)
+- **backend/** – API (Express, TypeScript, MongoDB). Deploy this to Vercel.
+- **frontend-admin/** – Admin panel (React, Vite). Port 3001.
+- **frontend/** – Driver/Center panel (React, Vite). Port 3002.
 
-## 📁 Project Structure
+## Run locally
 
-This project is organized into three separate applications:
+**Prerequisites:** Node.js 18+, MongoDB (local or [MongoDB Atlas](https://cloud.mongodb.com)).
 
-```
-akshaya-dairy/
-├── backend/                 # Backend API Server
-│   ├── src/                # Source code
-│   ├── database/           # Migrations & seeds
-│   ├── package.json        # Backend dependencies
-│   └── README.md           # Backend documentation
-│
-├── frontend-admin/          # Admin Panel (React App)
-│   ├── src/                # Source code
-│   ├── package.json        # Admin frontend dependencies
-│   └── README.md           # Admin panel documentation
-│
-└── frontend-driver-center/  # Driver & Center Panel (React App)
-    ├── src/                # Source code
-    ├── package.json        # Driver/Center frontend dependencies
-    └── README.md           # Driver/Center panel documentation
-```
+1. **Backend**
+   ```bash
+   cd backend
+   cp .env.example .env
+   # Edit .env: set MONGODB_URI and JWT_SECRET
+   npm install
+   npm run seed    # creates default admin if no users (optional)
+   npm run dev
+   ```
+   API: http://localhost:3000 | Swagger: http://localhost:3000/api-docs
 
-## 🚀 Quick Start
+2. **Run all (backend + admin + driver panel) from project root**
+   ```bash
+   npm install
+   npm run dev
+   ```
+   - Backend: http://localhost:3000  
+   - Admin: http://localhost:3001  
+   - Driver/Center: http://localhost:3002  
 
-### Prerequisites
+## Deploy backend to Vercel (from GitHub)
 
-- Node.js (v18+)
-- PostgreSQL (v12+)
-- npm or yarn
+1. Push this repo to GitHub.
 
-### 1. Setup Backend
+2. In [Vercel](https://vercel.com): **Add New Project** → Import your GitHub repo.
 
-```bash
-# Navigate to backend directory
-cd backend
+3. **Project settings**
+   - **Root Directory:** set to `backend` (so Vercel builds and runs the API only).
+   - **Build Command:** `npm run build`
+   - **Output Directory:** leave default (not used for serverless API).
 
-# Install dependencies
-npm install
+4. **Environment variables** (Vercel → Project → Settings → Environment Variables)
 
-# Create .env file (copy from .env.example)
-# Update database credentials
+   Add:
 
-# Run migrations
-npm run migrate
+   | Name         | Value |
+   |-------------|--------|
+   | `MONGODB_URI` | Your MongoDB Atlas connection string (see below) |
+   | `JWT_SECRET`  | A long random string for production |
 
-# Seed sample data
-npm run seed
+   **MongoDB Atlas connection string**
 
-# Start backend server
-npm run dev
-```
+   - In MongoDB Atlas: Cluster → Connect → Drivers → copy the connection string.
+   - Replace `<password>` with your database user password.
+   - Your DB user: **rohanbhalkar92_db_user** (use the password you set in Atlas).
+   - Example format:  
+     `mongodb+srv://rohanbhalkar92_db_user:YOUR_PASSWORD@CLUSTER.mongodb.net/akshaya_dairy?retryWrites=true&w=majority`  
+   - Do **not** put the real password in the repo; set `MONGODB_URI` only in Vercel (and in local `.env`, which is gitignored).
 
-Backend runs on: **http://localhost:3000**
+5. Deploy. Vercel will build and run the backend; all API routes are served by one serverless function.
 
-### 2. Setup Admin Panel
+6. **First-time setup:** Run the seed once so an admin user exists. From your machine (with `MONGODB_URI` in `backend/.env` pointing to the same Atlas database):
+   ```bash
+   cd backend
+   npm run seed
+   ```
+   Default admin (if seed creates it): mobile `9999999999`, password `admin123` (or set `ADMIN_PASSWORD` / `ADMIN_MOBILE` in `.env` when seeding).
 
-```bash
-# Navigate to admin frontend
-cd frontend-admin
+## Default login (after seed)
 
-# Install dependencies
-npm install
+- **Admin:** mobile `9999999999` (or value from `ADMIN_MOBILE`), password `admin123` (or `ADMIN_PASSWORD`).
 
-# Start development server
-npm run dev
-```
+## Tech stack
 
-Admin panel runs on: **http://localhost:3001**
+- **Backend:** Node.js, Express, TypeScript, MongoDB (Mongoose), JWT, Swagger.
+- **Frontend:** React 18, TypeScript, Vite, Bootstrap, Axios.
 
-### 3. Setup Driver/Center Panel
+## Security
 
-```bash
-# Navigate to driver/center frontend
-cd frontend-driver-center
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-Driver/Center panel runs on: **http://localhost:3002**
-
-## 🛠 Technology Stack
-
-### Backend
-- Node.js + Express.js
-- TypeScript
-- PostgreSQL + Knex.js
-- JWT Authentication
-- JOI Validation
-- Swagger Documentation
-
-### Frontend
-- React 18 + TypeScript
-- Vite
-- Bootstrap 5
-- React Router
-- Axios
-
-## ✨ Features
-
-### Admin Panel
-- Dashboard with real-time statistics
-- Driver management
-- Dairy center management
-- Milk collection tracking
-- Payment management
-- Reports and analytics
-
-### Driver Panel
-- On/Off duty toggle
-- Milk collection entry
-- View assigned centers
-- GPS location sharing
-- Collection history
-
-### Dairy Center Panel
-- View milk collections
-- Payment tracking
-- Monthly reports
-- Rate information
-
-## 📚 Documentation
-
-Each application has its own detailed README:
-
-- **[Backend README](./backend/README.md)** - API documentation, setup, and endpoints
-- **[Admin Panel README](./frontend-admin/README.md)** - Admin panel setup and features
-- **[Driver/Center Panel README](./frontend-driver-center/README.md)** - Driver and center panel setup
-
-## 🔑 Default Credentials
-
-After running backend seeds:
-
-### Admin
-- **Mobile/Email**: `9876543210` or `admin@akshayadairy.com`
-- **Password**: `password123`
-
-### Driver 1
-- **Mobile/Email**: `9876543211` or `driver1@akshayadairy.com`
-- **Password**: `password123`
-
-### Vendor 1
-- **Mobile/Email**: `9876543213` or `vendor1@akshayadairy.com`
-- **Password**: `password123`
-
-## 📊 API Documentation
-
-Once the backend is running, access Swagger documentation at:
-- **Swagger UI**: http://localhost:3000/api-docs
-
-## 🔒 Security Features
-
-- JWT token-based authentication
-- Password hashing with bcrypt
-- Role-based access control
-- Input validation with JOI
-- CORS configuration
-- SQL injection protection
-
-## 📝 Development
-
-### Running All Services
-
-You'll need three terminal windows:
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-npm run dev
-```
-
-**Terminal 2 - Admin Panel:**
-```bash
-cd frontend-admin
-npm run dev
-```
-
-**Terminal 3 - Driver/Center Panel:**
-```bash
-cd frontend-driver-center
-npm run dev
-```
-
-## 🧪 Testing
-
-```bash
-# Backend tests
-cd backend
-npm test
-
-# Frontend tests (when implemented)
-cd frontend-admin
-npm test
-```
-
-## 📞 Support
-
-For issues and questions, please create an issue in the repository.
-
-## 📄 License
-
-ISC
-
----
-
-**Built with ❤️ for Akshaya Dairy**
+- Keep `.env` and real passwords out of the repo. Use Vercel env vars and local `.env` only.
+- Use a strong `JWT_SECRET` in production.

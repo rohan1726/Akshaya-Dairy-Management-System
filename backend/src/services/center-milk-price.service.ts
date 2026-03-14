@@ -1,11 +1,8 @@
-import db from '../config/database';
+import { CenterMilkPriceModel, ActivityLogModel } from '../models';
+import { toApiDoc, toApiDocs } from '../config/database';
 import { CenterMilkPrice, MilkType } from '../models/types';
-import logger from '../utils/logger';
 
 export class CenterMilkPriceService {
-  /**
-   * Set or update center-specific milk price
-   */
   async setCenterPrice(priceData: {
     center_id: string;
     price_date: Date;
@@ -20,124 +17,84 @@ export class CenterMilkPriceService {
     notes?: string;
     created_by: string;
   }): Promise<CenterMilkPrice> {
-    const dateStr = new Date(priceData.price_date).toISOString().split('T')[0];
+    const priceDate = new Date(priceData.price_date);
+    priceDate.setHours(0, 0, 0, 0);
 
-    // Check if price already exists
-    const existing = await db('center_milk_prices')
-      .where('center_id', priceData.center_id)
-      .where('price_date', dateStr)
-      .where('milk_type', priceData.milk_type)
-      .first();
+    const existing = await CenterMilkPriceModel.findOne({
+      center_id: priceData.center_id,
+      price_date: priceDate,
+      milk_type: priceData.milk_type,
+    });
 
     if (existing) {
-      // Store old prices before updating
-      const oldBasePrice = existing.base_price;
-      const oldNetPrice = existing.net_price;
+      const oldBase = existing.base_price;
+      const oldNet = existing.net_price;
+      existing.base_price = priceData.base_price;
+      existing.net_price = priceData.net_price;
+      if (oldBase !== priceData.base_price) existing.old_base_price = oldBase;
+      if (oldNet != null && oldNet !== priceData.net_price) existing.old_net_price = oldNet;
+      existing.base_fat = priceData.base_fat;
+      existing.base_snf = priceData.base_snf;
+      existing.fat_rate = priceData.fat_rate;
+      existing.snf_rate = priceData.snf_rate;
+      existing.bonus = priceData.bonus ?? 0;
+      existing.notes = priceData.notes;
+      existing.modified_by = priceData.created_by;
+      await existing.save();
 
-      // Update existing price
-      const [updated] = await db('center_milk_prices')
-        .where('id', existing.id)
-        .update({
-          base_price: priceData.base_price,
-          net_price: priceData.net_price || null,
-          old_base_price: oldBasePrice !== priceData.base_price ? oldBasePrice : existing.old_base_price,
-          old_net_price: oldNetPrice && oldNetPrice !== priceData.net_price ? oldNetPrice : existing.old_net_price,
-          base_fat: priceData.base_fat,
-          base_snf: priceData.base_snf,
-          fat_rate: priceData.fat_rate,
-          snf_rate: priceData.snf_rate,
-          bonus: priceData.bonus || 0,
-          notes: priceData.notes,
-          modified_at: new Date(),
-          modified_by: priceData.created_by,
-        })
-        .returning('*');
-
-      // Log activity
-      await db('activity_logs').insert({
+      await ActivityLogModel.create({
         user_id: priceData.created_by,
         action: 'update_center_milk_price',
         entity_type: 'center_milk_price',
-        entity_id: updated.id,
-        description: `Updated ${priceData.milk_type} milk price for center on ${dateStr}`,
-        old_values: existing,
-        new_values: updated,
+        entity_id: existing._id.toString(),
       });
-
-      return updated;
-    } else {
-      // Create new price
-      const [newPrice] = await db('center_milk_prices')
-        .insert({
-          ...priceData,
-          price_date: dateStr,
-          is_active: true,
-        })
-        .returning('*');
-
-      // Log activity
-      await db('activity_logs').insert({
-        user_id: priceData.created_by,
-        action: 'create_center_milk_price',
-        entity_type: 'center_milk_price',
-        entity_id: newPrice.id,
-        description: `Created ${priceData.milk_type} milk price for center on ${dateStr}`,
-        new_values: newPrice,
-      });
-
-      return newPrice;
+      return toApiDoc(existing) as CenterMilkPrice;
     }
+
+    const newPrice = await CenterMilkPriceModel.create({
+      ...priceData,
+      price_date: priceDate,
+      bonus: priceData.bonus ?? 0,
+      is_active: true,
+    });
+
+    await ActivityLogModel.create({
+      user_id: priceData.created_by,
+      action: 'create_center_milk_price',
+      entity_type: 'center_milk_price',
+      entity_id: newPrice._id.toString(),
+    });
+    return toApiDoc(newPrice) as CenterMilkPrice;
   }
 
-  /**
-   * Get center price for a specific date and milk type
-   */
-  async getCenterPrice(
-    centerId: string,
-    date: Date,
-    milkType: MilkType
-  ): Promise<CenterMilkPrice | null> {
-    const dateStr = date.toISOString().split('T')[0];
-
-    const price = await db('center_milk_prices')
-      .where('center_id', centerId)
-      .where('price_date', dateStr)
-      .where('milk_type', milkType)
-      .where('is_active', true)
-      .first();
-
-    return price || null;
+  async getCenterPrice(centerId: string, date: Date, milkType: MilkType): Promise<CenterMilkPrice | null> {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const next = new Date(d);
+    next.setDate(next.getDate() + 1);
+    const price = await CenterMilkPriceModel.findOne({
+      center_id: centerId,
+      price_date: { $gte: d, $lt: next },
+      milk_type: milkType,
+      is_active: true,
+    }).lean();
+    return price ? (toApiDoc(price) as CenterMilkPrice) : null;
   }
 
-  /**
-   * Get all center prices for a date range
-   */
   async getCenterPrices(filters: {
     center_id?: string;
     start_date?: Date;
     end_date?: Date;
     milk_type?: MilkType;
   }): Promise<CenterMilkPrice[]> {
-    let query = db('center_milk_prices').select('*').where('is_active', true);
-
-    if (filters.center_id) {
-      query = query.where('center_id', filters.center_id);
-    }
-    if (filters.start_date) {
-      const startStr = new Date(filters.start_date).toISOString().split('T')[0];
-      query = query.where('price_date', '>=', startStr);
-    }
-    if (filters.end_date) {
-      const endStr = new Date(filters.end_date).toISOString().split('T')[0];
-      query = query.where('price_date', '<=', endStr);
-    }
-    if (filters.milk_type) {
-      query = query.where('milk_type', filters.milk_type);
-    }
-
-    return await query.orderBy('price_date', 'desc').orderBy('milk_type', 'asc');
+    const filter: any = { is_active: true };
+    if (filters.center_id) filter.center_id = filters.center_id;
+    if (filters.start_date) filter.price_date = { ...filter.price_date, $gte: new Date(filters.start_date) };
+    if (filters.end_date) filter.price_date = { ...filter.price_date, $lte: new Date(filters.end_date) };
+    if (filters.milk_type) filter.milk_type = filters.milk_type;
+    const prices = await CenterMilkPriceModel.find(filter).sort({ price_date: -1, milk_type: 1 }).lean();
+    return toApiDocs(prices as any);
   }
 }
 
 export default new CenterMilkPriceService();
-

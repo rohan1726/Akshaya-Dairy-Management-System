@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import db from '../config/database';
+import { MilkCollectionModel, ActivityLogModel } from '../models';
+import { toApiDoc } from '../config/database';
 import logger from '../utils/logger';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../models/types';
@@ -15,34 +16,29 @@ export class MilkCollectionAdminController {
       const { id } = req.params;
       const { status } = req.body;
 
-      const [collection] = await db('milk_collections')
-        .where('id', id)
-        .update({
-          status,
-          modified_at: new Date(),
-          modified_by: req.user.userId,
-        })
-        .returning('*');
+      const collection = await MilkCollectionModel.findByIdAndUpdate(
+        id,
+        { status, modified_by: req.user.userId },
+        { new: true }
+      );
 
       if (!collection) {
         res.status(404).json({ success: false, message: 'Collection not found' });
         return;
       }
 
-      // Log activity
-      await db('activity_logs').insert({
+      await ActivityLogModel.create({
         user_id: req.user.userId,
         action: 'update_collection_status',
         entity_type: 'milk_collection',
-        entity_id: collection.id,
-        description: `Updated collection status to ${status}`,
-        new_values: collection,
+        entity_id: collection._id.toString(),
+        details: { status },
       });
 
       res.json({
         success: true,
         message: 'Collection status updated successfully',
-        data: collection,
+        data: toApiDoc(collection),
       });
     } catch (error: any) {
       logger.error('Update collection status error:', error);
@@ -55,4 +51,3 @@ export class MilkCollectionAdminController {
 }
 
 export default new MilkCollectionAdminController();
-

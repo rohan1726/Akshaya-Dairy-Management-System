@@ -12,53 +12,22 @@ export class MilkController {
         return;
       }
 
-      // Get driver's internal ID from drivers table (driver_id in milk_collections references drivers.id, not users.id)
-      const db = (await import('../config/database')).default;
-      let driverInternalId: string | undefined;
-      
+      const { DriverModel } = await import('../models');
+      let driverId: string | undefined;
       if (req.user.role === 'driver') {
-        // For drivers, driver_id is required
-        const driverRecord = await db('drivers')
-          .where('driver_id', req.user.userId)
-          .first();
-        
+        const driverRecord = await DriverModel.findOne({ driver_id: req.user.userId });
         if (!driverRecord) {
-          res.status(404).json({
-            success: false,
-            message: 'Driver record not found. Please contact admin.',
-          });
+          res.status(404).json({ success: false, message: 'Driver record not found. Please contact admin.' });
           return;
         }
-        
-        driverInternalId = driverRecord.id;
-      } else {
-        // For admin or other roles, driver_id is optional
-        // Try to get driver_id from request body if provided
-        if (req.body.driver_id) {
-          // Check if it's a user ID or driver internal ID
-          const driverByUserId = await db('drivers')
-            .where('driver_id', req.body.driver_id)
-            .first();
-          
-          if (driverByUserId) {
-            driverInternalId = driverByUserId.id;
-          } else {
-            // Assume it's already a driver internal ID
-            const driverById = await db('drivers')
-              .where('id', req.body.driver_id)
-              .first();
-            
-            if (driverById) {
-              driverInternalId = driverById.id;
-            }
-          }
-        }
-        // If no driver_id provided for admin, driverInternalId will remain undefined (null)
+        driverId = req.user.userId; // store user id in milk_collections.driver_id
+      } else if (req.body.driver_id) {
+        driverId = req.body.driver_id; // admin can pass driver user id
       }
 
       const collectionData = {
         ...req.body,
-        driver_id: driverInternalId, // Can be undefined (null) for admin-created collections
+        driver_id: driverId,
         created_by: req.user.userId,
       };
 
@@ -94,14 +63,9 @@ export class MilkController {
       if (req.user.role === 'driver') {
         filters.driver_id = req.user.userId;
       } else if (req.user.role === 'vendor') {
-        // Get vendor's center_id
-        const db = (await import('../config/database')).default;
-        const center = await db('dairy_centers')
-          .where('user_id', req.user.userId)
-          .first();
-        if (center) {
-          filters.center_id = center.id; // Changed from vendor_id to center_id
-        }
+        const { DairyCenterModel } = await import('../models');
+        const center = await DairyCenterModel.findOne({ user_id: req.user.userId }).lean();
+        if (center) filters.center_id = center._id.toString();
       }
 
       if (req.query.start_date && req.query.end_date) {
