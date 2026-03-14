@@ -29,8 +29,8 @@ export const useAuth = () => {
   return context;
 };
 
-// Use relative URL to leverage Vite proxy (bypasses CORS)
-axios.defaults.baseURL = '/api';
+// Use VITE_API_URL when set (e.g. production), else /api for Vite proxy (dev)
+axios.defaults.baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` : '/api';
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {

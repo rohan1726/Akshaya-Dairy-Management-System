@@ -29,7 +29,7 @@ export const useAuth = () => {
   return context;
 };
 
-axios.defaults.baseURL = 'http://localhost:3000/api';
+axios.defaults.baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` : 'http://localhost:3000/api';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);

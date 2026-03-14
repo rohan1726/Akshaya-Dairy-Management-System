@@ -69,6 +69,31 @@ Dairy milk collection and management: backend API (Node + Express + MongoDB), ad
    ```
    Default admin (if seed creates it): mobile `9999999999`, password `admin123` (or set `ADMIN_PASSWORD` / `ADMIN_MOBILE` in `.env` when seeding).
 
+## Get your backend, admin, and frontend links
+
+### Backend API link (you already have this)
+- In **Vercel** → your project → **Deployments** → open the latest deployment.
+- Your API URL is the deployment URL, e.g. `https://akshaya-dairy-management-system.vercel.app`.
+- Use it as: **API** = that URL, **Health** = `https://your-project.vercel.app/health`, **Swagger** = `https://your-project.vercel.app/api-docs`.
+
+### Admin panel link
+Deploy the admin app as a **separate Vercel project**:
+
+1. **Vercel** → **Add New Project** → **Import** the **same** GitHub repo (`rohan1726/Akshaya-Dairy-Management-System`).
+2. Set **Root Directory** to `frontend-admin`.  
+3. **Environment variable:** add `VITE_API_URL` = your backend URL, e.g. `https://akshaya-dairy-management-system.vercel.app` (no trailing slash).
+4. Deploy. Your **admin link** is the new project’s URL (e.g. `https://akshaya-dairy-admin.vercel.app`).
+
+### Driver/Center panel link
+Same idea, second frontend:
+
+1. **Vercel** → **Add New Project** → **Import** the same repo again.
+2. Set **Root Directory** to `frontend` (the driver/center app).
+3. **Environment variable:** add `VITE_API_URL` = your backend URL (same as above).
+4. Deploy. Your **driver/center link** is this project’s URL.
+
+So you end up with **3 Vercel projects** (same repo, different root): one for the API, one for admin, one for driver/center. Each has its own link.
+
 ## Default login (after seed)
 
 - **Admin:** mobile `9999999999` (or value from `ADMIN_MOBILE`), password `admin123` (or `ADMIN_PASSWORD`).
