@@ -1,0 +1,150 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  
+  /* Azia Color Scheme - Primary Colors */
+  --azia-fuchsia: #6F42C1;        /* Primary Fuchsia/Purple */
+  --azia-blue: #007BFF;             /* Primary Blue */
+  
+  /* Azia Color Scheme - Supporting Colors */
+  --azia-aquamarine: #00CCCC;      /* Aquamarine/Teal */
+  --azia-cyan: #0DCAF0;             /* Cyan */
+  --azia-blue-green: #17A2B8;      /* Blue-Green */
+  
+  /* Background */
+  --azia-bg-white: #FFFFFF;        /* White Background */
+  --azia-bg-light: #F8F9FA;        /* Light Gray Background */
+  
+  /* Text Colors */
+  --azia-text-dark: #212529;       /* Dark Text */
+  --azia-text-muted: #6C757D;      /* Muted Text */
+  
+  /* Shadows */
+  --azia-shadow-sm: 0 2px 4px rgba(111, 66, 193, 0.1);
+  --azia-shadow-md: 0 4px 12px rgba(111, 66, 193, 0.15);
+  --azia-shadow-lg: 0 8px 24px rgba(111, 66, 193, 0.2);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--azia-bg-white);
+  color: var(--azia-text-dark);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Azia Button Styles */
+.btn-primary {
+  background-color: var(--azia-fuchsia);
+  border-color: var(--azia-fuchsia);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #5a32a3;
+  border-color: #5a32a3;
+  color: white;
+}
+
+.btn-success {
+  background-color: var(--azia-aquamarine);
+  border-color: var(--azia-aquamarine);
+  color: white;
+}
+
+.btn-success:hover {
+  background-color: #00b3b3;
+  border-color: #00b3b3;
+  color: white;
+}
+
+.btn-info {
+  background-color: var(--azia-blue);
+  border-color: var(--azia-blue);
+  color: white;
+}
+
+.btn-info:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+  color: white;
+}
+
+.btn-secondary {
+  background-color: var(--azia-blue-green);
+  border-color: var(--azia-blue-green);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #138496;
+  border-color: #138496;
+  color: white;
+}
+
+/* Azia Card Styles */
+.card {
+  border: none;
+  box-shadow: var(--azia-shadow-sm);
+  border-radius: 8px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--azia-shadow-md);
+}
+
+/* Azia Badge Styles */
+.bg-primary {
+  background-color: var(--azia-fuchsia) !important;
+}
+
+.bg-success {
+  background-color: var(--azia-aquamarine) !important;
+}
+
+.bg-info {
+  background-color: var(--azia-blue) !important;
+}
+
+.bg-secondary {
+  background-color: var(--azia-blue-green) !important;
+}
+
+/* Azia Text Colors */
+.text-primary {
+  color: var(--azia-fuchsia) !important;
+}
+
+.text-success {
+  color: var(--azia-aquamarine) !important;
+}
+
+.text-info {
+  color: var(--azia-blue) !important;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--azia-fuchsia);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5a32a3;
+}
+
