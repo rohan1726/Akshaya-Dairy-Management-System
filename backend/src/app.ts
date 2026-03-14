@@ -107,6 +107,21 @@ app.get('/', (req, res) => {
 // Swagger Documentation
 setupSwagger(app);
 
+// Ensure MongoDB is connected for all /api routes (serverless-friendly: lazy connect, 503 if unavailable)
+app.use('/api', async (req, res, next) => {
+  try {
+    await connectDatabase();
+    next();
+  } catch (err) {
+    logger.error('API request blocked: database unavailable', { error: err });
+    res.status(503).json({
+      success: false,
+      message: 'Database unavailable. If on Vercel, set MONGODB_URI in Project Settings → Environment Variables.',
+      ...(process.env.NODE_ENV !== 'production' && { detail: (err as Error).message }),
+    });
+  }
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/milk', milkRoutes);
