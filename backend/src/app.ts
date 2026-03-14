@@ -38,9 +38,8 @@ const corsOptions = {
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001',
       'http://127.0.0.1:3002',
-      // Vercel hosting (add your production frontend URL here)
-      /^https:\/\/[a-z0-9-]+\.vercel\.app$/,
-      /^https:\/\/[a-z0-9-]+-[a-z0-9-]+\.vercel\.app$/,
+      // Any Vercel deployment (production + preview)
+      /^https:\/\/[a-z0-9-_.]+\.vercel\.app$/,
     ];
     
     // In development, allow all origins
@@ -103,6 +102,18 @@ app.get('/', (req, res) => {
     health: `http://localhost:${PORT}/health`,
   });
 });
+
+// App URLs for the landing page (set ADMIN_APP_URL and DRIVER_APP_URL in Vercel env)
+app.get('/app-urls', (req, res) => {
+  res.json({
+    success: true,
+    adminUrl: process.env.ADMIN_APP_URL || null,
+    driverUrl: process.env.DRIVER_APP_URL || null,
+  });
+});
+
+// Redirect trailing slash so Swagger UI asset paths resolve (fixes blank /api-docs/ on Vercel)
+app.get('/api-docs/', (req, res) => res.redirect(301, '/api-docs'));
 
 // Swagger Documentation
 setupSwagger(app);

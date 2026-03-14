@@ -1,6 +1,13 @@
+import path from 'path';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { Application } from 'express';
 import swaggerUi from 'swagger-ui-express';
+
+// Resolve API doc sources from this file's location so Swagger works when cwd is repo root (e.g. Vercel)
+const thisDir = __dirname;
+const routesDir = path.join(thisDir, '..', 'routes');
+const ext = thisDir.includes(path.sep + 'dist' + path.sep) ? 'js' : 'ts';
+const apisGlob = path.join(routesDir, `*.${ext}`);
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -17,6 +24,10 @@ const options: swaggerJsdoc.Options = {
       {
         url: `http://localhost:${process.env.PORT || 3000}`,
         description: 'Development server',
+      },
+      {
+        url: '/',
+        description: 'Current host (Vercel / production)',
       },
     ],
     components: {
@@ -63,7 +74,7 @@ const options: swaggerJsdoc.Options = {
       },
     ],
   },
-  apis: ['./src/routes/*.ts', './src/controllers/*.ts', './src/**/*.ts'],
+  apis: [apisGlob],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

@@ -42,7 +42,9 @@ Dairy milk collection and management: backend API (Node + Express + MongoDB), ad
    You can leave **Root Directory** empty (repo root). The root `vercel.json` runs install and build for the backend, and the root `api/` folder serves the API.  
    Or set **Root Directory** to `backend` for a backend-only deploy; then use **Build Command** `npm run build`.
 
-4. **Environment variables** (Vercel → Project → Settings → Environment Variables)
+4. **Environment variables** (add these in Vercel so the API can start)
+   - In Vercel: open your **project** → **Settings** → **Environment Variables**.
+   - Add each variable (Name + Value), choose **Production** (and Preview if you use it), then Save.
 
    Add:
 
@@ -50,6 +52,8 @@ Dairy milk collection and management: backend API (Node + Express + MongoDB), ad
    |-------------|--------|
    | `MONGODB_URI` | Your MongoDB Atlas connection string (see below) |
    | `JWT_SECRET`  | A long random string for production |
+   | `ADMIN_APP_URL` | (Optional) Full URL of the admin frontend, e.g. `https://akshaya-dairy-admin.vercel.app` — so the landing page “Admin Panel” link works |
+   | `DRIVER_APP_URL` | (Optional) Full URL of the driver/center frontend, e.g. `https://akshaya-dairy-driver.vercel.app` — so the landing page “Driver / Center Panel” link works |
 
    **MongoDB Atlas connection string**
 
@@ -93,6 +97,31 @@ Same idea, second frontend:
 4. Deploy. Your **driver/center link** is this project’s URL.
 
 So you end up with **3 Vercel projects** (same repo, different root): one for the API, one for admin, one for driver/center. Each has its own link.
+
+### Make all three work together (checklist)
+
+1. **Backend (1st project)**  
+   - Deploy from repo root (or Root Directory empty).  
+   - Set: `MONGODB_URI`, `JWT_SECRET`.  
+   - Copy your backend URL (e.g. `https://akshaya-dairy-management-system-68l.vercel.app`).
+
+2. **Admin (2nd project)**  
+   - **Add New Project** → same repo.  
+   - **Root Directory:** `frontend-admin`.  
+   - **Environment variable:** `VITE_API_URL` = your backend URL (no trailing slash).  
+   - Deploy, then copy the admin URL (e.g. `https://akshaya-dairy-admin.vercel.app`).
+
+3. **Driver/Center (3rd project)**  
+   - **Add New Project** → same repo.  
+   - **Root Directory:** `frontend`.  
+   - **Environment variable:** `VITE_API_URL` = your backend URL (same as above).  
+   - Deploy, then copy the driver URL (e.g. `https://akshaya-dairy-driver.vercel.app`).
+
+4. **Landing page links**  
+   - In the **backend** Vercel project → **Settings** → **Environment Variables**, add:  
+     - `ADMIN_APP_URL` = admin URL from step 2  
+     - `DRIVER_APP_URL` = driver URL from step 3  
+   - Redeploy the backend once so the landing page shows the correct Admin and Driver links.
 
 ## Default login (after seed)
 
